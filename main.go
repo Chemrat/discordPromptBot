@@ -63,11 +63,11 @@ func main() {
 	return
 }
 
-func onConnect(_, c *discordgo.Connect) {
+func onConnect(s *discordgo.Session, c *discordgo.Connect) {
 	log.Println("Connected")
 }
 
-func onDisconnect(_, m *discordgo.Connect) {
+func onDisconnect(s *discordgo.Session, m *discordgo.Connect) {
 	log.Println("Disconnected")
 }
 
