@@ -47,6 +47,9 @@ func main() {
 		log.Fatal("Failed to create a Discord session:", err)
 	}
 
+	discordSession.ShouldReconnectOnError = true
+	discordSession.AddHandler(onConnect)
+	discordSession.AddHandler(onDisconnect)
 	discordSession.AddHandler(onMessageCreated)
 
 	err = discordSession.Open()
@@ -58,6 +61,14 @@ func main() {
 
 	<-stopBot
 	return
+}
+
+func onConnect(_, c *discordgo.Connect) {
+	log.Println("Connected")
+}
+
+func onDisconnect(_, m *discordgo.Connect) {
+	log.Println("Disconnected")
 }
 
 func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
