@@ -64,11 +64,12 @@ func main() {
 }
 
 func onConnect(s *discordgo.Session, c *discordgo.Connect) {
-	log.Println("Connected")
+	// this event is CONSTANTLY triggered by discordgo, I don't know why
+	// log.Println("Connected")
 }
 
 func onDisconnect(s *discordgo.Session, m *discordgo.Connect) {
-	log.Println("Disconnected")
+	// log.Println("Disconnected")
 }
 
 func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -76,7 +77,8 @@ func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	log.Printf("%20s %20s %20s > %s\n", m.ChannelID, m.Author.ID, m.Author.Username, m.Content)
+	// reduce the log noise
+	// log.Printf("%20s %20s %20s > %s\n", m.ChannelID, m.Author.ID, m.Author.Username, m.Content)
 
 	c, err := s.State.Channel(m.ChannelID)
 	if err != nil {
