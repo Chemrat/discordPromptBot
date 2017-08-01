@@ -321,13 +321,13 @@ func RestoreWorkerStatus(s *discordgo.Session) {
 func SaveWorkerStatus(isRunning bool) {
 	status.IsRunning = isRunning
 
-	exportedJson, err := json.Marshal(status)
+	exportedJSON, err := json.Marshal(status)
 	if err != nil {
 		err = errors.New("Failed to serialize list: " + err.Error())
 		return
 	}
 
-	err = ioutil.WriteFile("status.json", exportedJson, 0644)
+	err = ioutil.WriteFile("status.json", exportedJSON, 0644)
 
 	if err != nil {
 		err = errors.New("Failed to write status file: " + err.Error())
