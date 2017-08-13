@@ -1,10 +1,10 @@
 package main
 
 import (
-	"io/ioutil"
 	"encoding/json"
-	"log"
 	"errors"
+	"io/ioutil"
+	"log"
 	"math/rand"
 	"sync"
 )
@@ -119,7 +119,7 @@ func DeletePrompt(text string, requestedBy string) (err error) {
 	for index := range prompts {
 		if prompts[index].Text == text {
 			if (requestedBy != prompts[index].AuthorID) &&
-				(!isAdmin(requestedBy))	{
+				(!isAdmin(requestedBy)) {
 				err = errors.New("Only author can delete their prompt")
 				return
 			}
