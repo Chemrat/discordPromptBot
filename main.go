@@ -8,13 +8,11 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
-	"os"
 	"strings"
 	"time"
 )
 
-var botID string
-var botToken string
+var authFile = "auth.json"
 
 var stopPromptThread = make(chan bool)
 var stopBot = make(chan bool)
@@ -23,6 +21,11 @@ var ptypes = make([]string, 0)
 
 var LastManualPrompt time.Time
 
+type AuthTokens struct {
+	ID		string	`json:"ID"`
+	Token	string	`json:"Token"`
+}
+
 type WorkerStatus struct {
 	IsRunning  bool          `json:"IsRunning"`
 	Period     time.Duration `json:"Period"`
@@ -30,15 +33,20 @@ type WorkerStatus struct {
 	ChannelID  string        `json:"ChannelID"`
 }
 
-var status WorkerStatus
+var auth	AuthTokens
+var status	WorkerStatus
 
 func init() {
-	if len(os.Args) != 3 {
-		log.Fatal("Usage: " + os.Args[0] + " botID botToken")
+	file, err := ioutil.ReadFile(authFile)
+	if err == nil {
+		err = json.Unmarshal(file, &auth)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println("Auth tokens loaded")
+	} else {
+		log.Println("Failed to load auth tokens: ", err)
 	}
-
-	botID = os.Args[1]
-	botToken = os.Args[2]
 
 	ptypes = append(ptypes,
 		"character",
@@ -51,7 +59,7 @@ func main() {
 	RestoreACL()
 	RestorePrompts()
 
-	discordSession, err := discordgo.New("Bot " + botToken)
+	discordSession, err := discordgo.New("Bot " + auth.Token)
 	if err != nil {
 		log.Fatal("Failed to create a Discord session:", err)
 	}
@@ -82,7 +90,7 @@ func onDisconnect(s *discordgo.Session, m *discordgo.Connect) {
 }
 
 func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.ID == botID {
+	if m.Author.ID == auth.ID {
 		return
 	}
 
