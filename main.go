@@ -22,8 +22,8 @@ var ptypes = make([]string, 0)
 var LastManualPrompt time.Time
 
 type AuthTokens struct {
-	ID		string	`json:"ID"`
-	Token	string	`json:"Token"`
+	ID    string `json:"ID"`
+	Token string `json:"Token"`
 }
 
 type WorkerStatus struct {
@@ -33,8 +33,8 @@ type WorkerStatus struct {
 	ChannelID  string        `json:"ChannelID"`
 }
 
-var auth	AuthTokens
-var status	WorkerStatus
+var auth AuthTokens
+var status WorkerStatus
 
 func init() {
 	file, err := ioutil.ReadFile(authFile)
