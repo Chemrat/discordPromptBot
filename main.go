@@ -88,7 +88,7 @@ func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	switch {
 	case strings.HasPrefix(m.Content, "!start"):
-		if c.IsPrivate {
+		if c.Type != discordgo.ChannelTypeGuildText {
 			SafeMessage(s, c, "Use this command in a non-private channel")
 			return
 		}
