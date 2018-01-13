@@ -1,15 +1,15 @@
 package main
 
 import (
-	"io/ioutil"
 	"encoding/json"
-	"log"
 	"errors"
+	"io/ioutil"
+	"log"
 	"math/rand"
 	"sync"
 )
 
-var saveFile string = "save.json"
+var saveFile = "save.json"
 var prompts = make([]Prompt, 0, 0)
 var mutex = sync.Mutex{}
 
@@ -54,13 +54,13 @@ func RestoreACL() {
 }
 
 func SaveACL() (err error) {
-	exportedJson, err := json.Marshal(admins)
+	exportedJSON, err := json.Marshal(admins)
 	if err != nil {
 		err = errors.New("Failed to serialize list: " + err.Error())
 		return
 	}
 
-	err = ioutil.WriteFile(aclFile, exportedJson, 0644)
+	err = ioutil.WriteFile(aclFile, exportedJSON, 0644)
 
 	if err != nil {
 		err = errors.New("Failed to write acl file: " + err.Error())
@@ -70,7 +70,7 @@ func SaveACL() (err error) {
 
 func AddToACL(userID string, requestedBy string) (err error) {
 	if !isAdmin(requestedBy) {
-		err = errors.New("Not allowed. Your user ID is not on service ACL.")
+		err = errors.New("not allowed: your user ID is not on service ACL")
 		return
 	}
 
@@ -119,7 +119,7 @@ func DeletePrompt(text string, requestedBy string) (err error) {
 	for index := range prompts {
 		if prompts[index].Text == text {
 			if (requestedBy != prompts[index].AuthorID) &&
-				(!isAdmin(requestedBy))	{
+				(!isAdmin(requestedBy)) {
 				err = errors.New("Only author can delete their prompt")
 				return
 			}
@@ -158,13 +158,13 @@ func isAdmin(id string) bool {
 }
 
 func savePromptsToDisk() (err error) {
-	exportedJson, err := json.Marshal(prompts)
+	exportedJSON, err := json.Marshal(prompts)
 	if err != nil {
 		err = errors.New("Failed to serialize list: " + err.Error())
 		return
 	}
 
-	err = ioutil.WriteFile(saveFile, exportedJson, 0644)
+	err = ioutil.WriteFile(saveFile, exportedJSON, 0644)
 
 	if err != nil {
 		err = errors.New("Failed to write savefile: " + err.Error())

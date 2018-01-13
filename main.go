@@ -1,39 +1,56 @@
 package main
 
 import (
-	"os"
-	"math/rand"
-	"time"
-	"github.com/bwmarrin/discordgo"
-	"strings"
-	"log"
-	"io/ioutil"
 	"encoding/json"
 	"errors"
+	"github.com/PuerkitoBio/goquery"
+	"github.com/bwmarrin/discordgo"
+	"io/ioutil"
+	"log"
+	"math/rand"
+	"strings"
+	"time"
 )
 
-var botID string
-var botToken string
+var authFile = "auth.json"
 
 var stopPromptThread = make(chan bool)
 var stopBot = make(chan bool)
 
-type WorkerStatus struct {
-	IsRunning  bool		 `json:"IsRunning"`
-	Period     time.Duration `json:"Period"`
-	LastPrompt time.Time 	 `json:"LastPrompt"`
-	ChannelID  string	 `json:"ChannelID"`
+var ptypes = make([]string, 0)
+
+var LastManualPrompt time.Time
+
+type AuthTokens struct {
+	ID    string `json:"ID"`
+	Token string `json:"Token"`
 }
 
+type WorkerStatus struct {
+	IsRunning  bool          `json:"IsRunning"`
+	Period     time.Duration `json:"Period"`
+	LastPrompt time.Time     `json:"LastPrompt"`
+	ChannelID  string        `json:"ChannelID"`
+}
+
+var auth AuthTokens
 var status WorkerStatus
 
 func init() {
-	if len(os.Args) != 3 {
-		log.Fatal("Usage: " + os.Args[0] + " botID botToken")
+	file, err := ioutil.ReadFile(authFile)
+	if err == nil {
+		err = json.Unmarshal(file, &auth)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Println("Auth tokens loaded")
+	} else {
+		log.Println("Failed to load auth tokens: ", err)
 	}
 
-	botID = os.Args[1]
-	botToken = os.Args[2]
+	ptypes = append(ptypes,
+		"character",
+		"creature")
 
 	rand.Seed(time.Now().Unix())
 }
@@ -42,7 +59,7 @@ func main() {
 	RestoreACL()
 	RestorePrompts()
 
-	discordSession, err := discordgo.New("Bot " + botToken)
+	discordSession, err := discordgo.New("Bot " + auth.Token)
 	if err != nil {
 		log.Fatal("Failed to create a Discord session:", err)
 	}
@@ -73,7 +90,7 @@ func onDisconnect(s *discordgo.Session, m *discordgo.Connect) {
 }
 
 func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.ID == botID {
+	if m.Author.ID == auth.ID {
 		return
 	}
 
@@ -104,13 +121,13 @@ func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 			minimumPeriod := 15 * time.Minute
 			if duration < minimumPeriod {
-				SafeMessage(s, c, "Duration is too short. Minimum: " + minimumPeriod.String())
+				SafeMessage(s, c, "Duration is too short. Minimum: "+minimumPeriod.String())
 				return
 			}
 
 			go worker(s, c, duration, 0)
 		} else {
-			go worker(s, c, 24 * time.Hour, 0)
+			go worker(s, c, 24*time.Hour, 0)
 		}
 	case m.Content == "!stop":
 		stopWorker()
@@ -121,7 +138,8 @@ func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 		!list - list existing prompts
 		!prompt - get a prompt right now
 		!start [period] - start posting prompts every [period] (24h by default) on current channel
-		!stop - stop posting prompts`
+		!stop - stop posting prompts
+		!get [type] - pull random prompt from internet (types: `
 
 		const AdminHelpMessage = `Service commands:
 		!purge - delete all prompts
@@ -129,16 +147,16 @@ func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 		!promote userId - add user to service ACL (requires Discord user ID; use !myid)
 		!die - terminate bot process`
 
-		SafeMessage(s, c, HelpMessage)
+		SafeMessage(s, c, HelpMessage+strings.Join(ptypes[:], " ")+"), defaults to random")
 		if isAdmin(m.Author.ID) {
 			SafeMessage(s, c, AdminHelpMessage)
 		}
 	case m.Content == "!prompt":
 		prompt, err := PopPrompt(true)
 		if err != nil {
-			SafeMessage(s, c, "<@" + m.Author.ID + ">, " + err.Error())
+			SafeMessage(s, c, "<@"+m.Author.ID+">, "+err.Error())
 		} else {
-			SafeMessage(s, c, "<@" + m.Author.ID + ">, prompt for you: " + prompt.Text + " (added by " + prompt.Author + ")")
+			SafeMessage(s, c, "<@"+m.Author.ID+">, prompt for you: "+prompt.Text+" (added by "+prompt.Author+")")
 		}
 
 	case strings.HasPrefix(m.Content, "!add"):
@@ -150,7 +168,7 @@ func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 		err = PushPrompt(params[1], m.Author.Username, m.Author.ID)
 		if err != nil {
-			SafeMessage(s, c, "Uh oh, " + err.Error())
+			SafeMessage(s, c, "Uh oh, "+err.Error())
 		} else {
 			SafeMessage(s, c, "Prompt added")
 		}
@@ -164,7 +182,7 @@ func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 		err = DeletePrompt(params[1], m.Author.ID)
 		if err != nil {
-			SafeMessage(s, c, "Uh oh, " + err.Error())
+			SafeMessage(s, c, "Uh oh, "+err.Error())
 		} else {
 			SafeMessage(s, c, "Prompt deleted")
 		}
@@ -173,7 +191,7 @@ func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 		err = PurgePrompts(m.Author.ID)
 
 		if err != nil {
-			SafeMessage(s, c, "Uh oh, " + err.Error())
+			SafeMessage(s, c, "Uh oh, "+err.Error())
 		} else {
 			SafeMessage(s, c, "Prompts purged")
 		}
@@ -199,7 +217,7 @@ func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 
 	case m.Content == "!myid":
-		SafeMessage(s, c, "<@" + m.Author.ID + "> Your ID is " + m.Author.ID)
+		SafeMessage(s, c, "<@"+m.Author.ID+"> Your ID is "+m.Author.ID)
 
 	case strings.HasPrefix(m.Content, "!promote"):
 		params := strings.SplitN(m.Content, " ", 2)
@@ -210,11 +228,20 @@ func onMessageCreated(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 		err = AddToACL(params[1], m.Author.ID)
 		if err != nil {
-			SafeMessage(s, c, "Uh oh, " + err.Error())
+			SafeMessage(s, c, "Uh oh, "+err.Error())
 		} else {
 			SafeMessage(s, c, "User added to service ACL")
 		}
 
+	case strings.HasPrefix(m.Content, "!get"):
+		params := strings.SplitN(m.Content, " ", 2)
+
+		if len(params) == 2 {
+			SafeMessage(s, c, PullPrompt(params[1]))
+			return
+		}
+
+		SafeMessage(s, c, PullRandomPrompt())
 	}
 }
 
@@ -252,10 +279,10 @@ func worker(s *discordgo.Session, c *discordgo.Channel, duration time.Duration, 
 
 func workerCycle(s *discordgo.Session, c *discordgo.Channel, cycleLength time.Duration) (quit bool) {
 	select {
-	case <- stopPromptThread:
+	case <-stopPromptThread:
 		SafeMessage(s, c, "Stopped")
 		return true
-	case <- time.After(cycleLength):
+	case <-time.After(cycleLength):
 		prompt, err := PopPrompt(true)
 		if err != nil {
 			SafeMessage(s, c, "No more prompts, stopping now")
@@ -263,7 +290,7 @@ func workerCycle(s *discordgo.Session, c *discordgo.Channel, cycleLength time.Du
 			return true
 		}
 
-		SafeMessage(s, c, "@everyone, new prompt: " + prompt.Text + " (added by " + prompt.Author + ")")
+		SafeMessage(s, c, "@everyone, new prompt: "+prompt.Text+" (added by "+prompt.Author+")")
 		status.LastPrompt = time.Now()
 		return false
 	}
@@ -321,15 +348,68 @@ func RestoreWorkerStatus(s *discordgo.Session) {
 func SaveWorkerStatus(isRunning bool) {
 	status.IsRunning = isRunning
 
-	exportedJson, err := json.Marshal(status)
+	WriteWorkerStatus()
+}
+
+func WriteWorkerStatus() {
+	exportedJSON, err := json.Marshal(status)
 	if err != nil {
 		err = errors.New("Failed to serialize list: " + err.Error())
 		return
 	}
 
-	err = ioutil.WriteFile("status.json", exportedJson, 0644)
+	err = ioutil.WriteFile("status.json", exportedJSON, 0644)
 
 	if err != nil {
 		err = errors.New("Failed to write status file: " + err.Error())
+	}
+}
+
+func PullPrompt(ptype string) string {
+	if LastManualPrompt.Add(time.Minute * 10).After(time.Now()) {
+		return "On cooldown"
+	}
+
+	switch ptype {
+	case "character":
+		return pullArtprompts(ptype)
+	case "creature":
+		return pullArtprompts(ptype)
+	default:
+		return "I know only these prompt types: " + strings.Join(ptypes[:], " ")
+	}
+}
+
+func PullRandomPrompt() string {
+	return PullPrompt(ptypes[rand.Intn(len(ptypes))])
+}
+
+func pullArtprompts(ptype string) string {
+	url := ""
+	switch ptype {
+	case "character":
+		url = "http://artprompts.org/character/"
+	case "creature":
+		url = "http://artprompts.org/creature-prompts/"
+	default:
+		return "No idea"
+	}
+
+	doc, err := goquery.NewDocument(url)
+	if err != nil {
+		log.Println("Error getting prompt: ", err)
+		return "Failed to pull page :<"
+	}
+
+	result := ""
+	doc.Find(".prompttextdiv").Each(func(i int, s *goquery.Selection) {
+		result = result + s.Text()
+	})
+
+	if len(result) == 0 {
+		return "Failed to parse page :<"
+	} else {
+		LastManualPrompt = time.Now()
+		return "From artprompts.org, type " + ptype + ":\n```" + result + "```"
 	}
 }
